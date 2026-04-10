@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact List</title>
+  <style>
+    /* ── Basic page layout ── */
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 0 20px;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    h1 { margin-bottom: 24px; }
+
+    /* ── The add/edit form ── */
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    form input {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    form button {
+      padding: 8px 18px;
+      background: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    form button:hover { background: #357abd; }
+
+    #cancel-btn {
+      margin-left: 10px;
+      background: #999;
+    }
+
+    #cancel-btn:hover { background: #777; }
+
+    /* ── Contact cards ── */
+    .contact-card {
+      background: white;
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .contact-info strong { font-size: 16px; }
+    .contact-info span   { display: block; font-size: 13px; color: #666; }
+
+    .contact-actions button {
+      padding: 5px 12px;
+      font-size: 13px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 6px;
+    }
+
+    .edit-btn   { background: #f0ad4e; color: white; }
+    .delete-btn { background: #e74c3c; color: white; }
+
+    .edit-btn:hover   { background: #d08a2e; }
+    .delete-btn:hover { background: #c0392b; }
+
+    #empty-msg { color: #999; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <h1>Contact List</h1>
+
+  <!-- ── Add / Edit Form ── -->
+  <form id="contact-form">
+    <input type="text"  id="input-name"  placeholder="Name (required)" />
+    <input type="email" id="input-email" placeholder="Email" />
+    <input type="tel"   id="input-phone" placeholder="Phone" />
+    <button type="submit" id="submit-btn">Add Contact</button>
+    <button type="button" id="cancel-btn" style="display:none">Cancel</button>
+  </form>
+
+  <!-- ── Contact List ── -->
+  <div id="contact-list">
+    <p id="empty-msg">No contacts yet. Add one above!</p>
+  </div>
+
+  <script>
+    // ── State ─────────────────────────────────────────────────────
+    // editingId tracks which contact we're currently editing (null = adding new).
+    let editingId = null;
+
+    // ── Load contacts on page open ────────────────────────────────
+    loadContacts();
+
+    // ── Form submit: add or update ────────────────────────────────
+    document.getElementById('contact-form').addEventListener('submit', async (e) => {
+      e.preventDefault(); // stop the page from refreshing
+
+      const name  = document.getElementById('input-name').value.trim();
+      const email = document.getElementById('input-email').value.trim();
+      const phone = document.getElementById('input-phone').value.trim();
+
+      if (!name) {
+        alert('Name is required.');
+        return;
+      }
+
+      if (editingId !== null) {
+        // Update existing contact
+        await fetch(`/contacts/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone })
+        });
+        cancelEdit();
+      } else {
+        // Add new contact
+        await fetch('/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone })
+        });
+        clearForm();
+      }
+
+      loadContacts(); // refresh the list
+    });
+
+    // ── Cancel button ─────────────────────────────────────────────
+    document.getElementById('cancel-btn').addEventListener('click', cancelEdit);
+
+    // ── Functions ─────────────────────────────────────────────────
+
+    // Fetch all contacts from the server and render them.
+    async function loadContacts() {
+      const res      = await fetch('/contacts');
+      const contacts = await res.json();
+      renderContacts(contacts);
+    }
+
+    // Build the HTML for the contact list.
+    function renderContacts(contacts) {
+      const list     = document.getElementById('contact-list');
+      const emptyMsg = document.getElementById('empty-msg');
+
+      // Remove old cards (but keep the empty message element)
+      list.querySelectorAll('.contact-card').forEach(el => el.remove());
+
+      if (contacts.length === 0) {
+        emptyMsg.style.display = 'block';
+        return;
+      }
+
+      emptyMsg.style.display = 'none';
+
+      contacts.forEach(contact => {
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+        card.innerHTML = `
+          <div class="contact-info">
+            <strong>${escapeHtml(contact.name)}</strong>
+            <span>${escapeHtml(contact.email)}</span>
+            <span>${escapeHtml(contact.phone)}</span>
+          </div>
+          <div class="contact-actions">
+            <button class="edit-btn"   onclick="startEdit(${contact.id}, '${escapeJs(contact.name)}', '${escapeJs(contact.email)}', '${escapeJs(contact.phone)}')">Edit</button>
+            <button class="delete-btn" onclick="deleteContact(${contact.id})">Delete</button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // Fill the form with a contact's data so the user can edit it.
+    function startEdit(id, name, email, phone) {
+      editingId = id;
+      document.getElementById('input-name').value  = name;
+      document.getElementById('input-email').value = email;
+      document.getElementById('input-phone').value = phone;
+      document.getElementById('submit-btn').textContent = 'Save Changes';
+      document.getElementById('cancel-btn').style.display = 'inline';
+      document.getElementById('input-name').focus();
+    }
+
+    // Reset the form back to "add" mode.
+    function cancelEdit() {
+      editingId = null;
+      clearForm();
+      document.getElementById('submit-btn').textContent = 'Add Contact';
+      document.getElementById('cancel-btn').style.display = 'none';
+    }
+
+    // Clear all form fields.
+    function clearForm() {
+      document.getElementById('input-name').value  = '';
+      document.getElementById('input-email').value = '';
+      document.getElementById('input-phone').value = '';
+    }
+
+    // Send a delete request to the server, then reload the list.
+    async function deleteContact(id) {
+      if (!confirm('Delete this contact?')) return;
+      await fetch(`/contacts/${id}`, { method: 'DELETE' });
+      loadContacts();
+    }
+
+    // Prevent HTML injection (XSS) when displaying user data.
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Escape single quotes for inline onclick strings.
+    function escapeJs(str) {
+      return String(str).replace(/'/g, "\\'");
+    }
+  </script>
+
+</body>
+</html>
