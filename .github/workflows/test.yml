@@ -12,6 +12,12 @@ on:
     - cron: '0 2 * * *'  # run every day at 2:00am UTC
   workflow_dispatch: # adds a "Run workflow" button in the GitHub Actions UI
 
+# Permissions needed across all jobs
+permissions:
+  contents: write  # allows committing test-history.json back to the repo
+  pages: write     # allows deploying to GitHub Pages
+  id-token: write  # required for GitHub Pages OIDC authentication
+
 jobs:
   # ── Job 1: API tests (Jest) ─────────────────────────────────────────────────
   # These don't need a running server — they spin up their own in-memory setup.
@@ -82,12 +88,34 @@ jobs:
         if: always() && github.event_name != 'pull_request'
         run: node save-results.js
 
-      # Commit the updated test-history.json back to the repo so the dashboard has data
-      - name: Commit updated test history
+      # Bundle dashboard.html and test-history.json into a site/ folder for Pages
+      - name: Prepare Pages site
         if: always() && github.event_name != 'pull_request'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add test-history.json
-          git diff --staged --quiet || git commit -m "Update test history [skip ci]"
-          git push origin HEAD:${{ github.ref_name }}
+          mkdir -p site
+          cp dashboard.html site/
+          cp test-history.json site/
+
+      # Upload the site/ folder as a Pages artifact for the deploy job to use
+      - name: Upload Pages artifact
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  # ── Job 3: Deploy to GitHub Pages ──────────────────────────────────────────
+  # Publishes the dashboard so anyone can view it without running a local server.
+  # Only runs after ui-tests completes, and never on pull requests.
+  deploy-pages:
+    runs-on: ubuntu-latest
+    needs: ui-tests  # wait for ui-tests to finish before deploying
+    if: github.event_name != 'pull_request'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}  # the live URL after deploy
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
