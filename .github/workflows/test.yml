@@ -77,16 +77,17 @@ jobs:
           path: test-results/
 
       # Save a summary of this run to test-history.json (runs even if tests failed)
+      # Skip on pull requests — we only want to track history on real branch runs
       - name: Save test results to history
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: node save-results.js
 
       # Commit the updated test-history.json back to the repo so the dashboard has data
       - name: Commit updated test history
-        if: always()
+        if: always() && github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add test-history.json
           git diff --staged --quiet || git commit -m "Update test history [skip ci]"
-          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
