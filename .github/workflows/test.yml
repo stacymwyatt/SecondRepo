@@ -1,33 +1,76 @@
 # .github/workflows/test.yml
 # This file tells GitHub to run your tests automatically
-# every time you push code or open a pull request.
+# every time you push code or open a pull request,
+# and on a nightly schedule.
 
 name: Run Tests
 
 on:
-  push:        # run when you push any branch
-  pull_request: # run when you open a pull request
+  push:          # run when you push any branch
+  pull_request:  # run when you open a pull request
+  schedule:
+    - cron: '0 2 * * *'  # run every day at 2:00am UTC
 
 jobs:
-  test:
-    runs-on: ubuntu-latest  # GitHub runs this on a fresh Linux machine
+  # ── Job 1: API tests (Jest) ─────────────────────────────────────────────────
+  # These don't need a running server — they spin up their own in-memory setup.
+  api-tests:
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Download your code onto the GitHub machine
       - name: Check out code
         uses: actions/checkout@v4
 
-      # Step 2: Install Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # Step 3: Install your dependencies (express, jest, etc.)
       - name: Install dependencies
         run: npm ci
 
-      # Step 4: Run your tests
-      - name: Run tests
+      - name: Run API tests
         run: npm test
+
+  # ── Job 2: UI tests (Playwright) ───────────────────────────────────────────
+  # These need the server running so Playwright has a real app to interact with.
+  ui-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Install the Chromium browser that Playwright will control
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # Start the server in the background (&) so the next step can run
+      - name: Start server
+        run: node server.js &
+
+      # Give the server a moment to finish starting before tests hit it
+      - name: Wait for server to be ready
+        run: npx wait-on http://localhost:3000
+
+      # Run Playwright in headless mode (no visible browser — there's no screen on GitHub's machines)
+      - name: Run UI tests
+        run: npx playwright test --config=playwright.config.js
+
+      # If tests fail, save screenshots of what Playwright saw — useful for debugging
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots
+          path: test-results/
