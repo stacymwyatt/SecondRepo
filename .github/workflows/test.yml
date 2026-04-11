@@ -6,10 +6,11 @@
 name: Run Tests
 
 on:
-  push:          # run when you push any branch
-  pull_request:  # run when you open a pull request
+  push:              # run when you push any branch
+  pull_request:      # run when you open a pull request
   schedule:
     - cron: '0 2 * * *'  # run every day at 2:00am UTC
+  workflow_dispatch: # adds a "Run workflow" button in the GitHub Actions UI
 
 jobs:
   # ── Job 1: API tests (Jest) ─────────────────────────────────────────────────
