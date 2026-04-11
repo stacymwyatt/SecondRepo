@@ -6,3 +6,7 @@ contacts.db
 
 # npm log files
 npm-debug.log*
+
+# Playwright generated output — these are local artifacts, not source code
+playwright-report/
+test-results/
