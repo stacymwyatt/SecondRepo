@@ -35,6 +35,11 @@ module.exports = defineConfig({
   // Where to save videos, screenshots, and other test artifacts
   outputDir: 'test-results/',
 
-  // Generate an HTML report after every run, viewable with: npx playwright show-report
-  reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }]],
+  // Generate reports after every run.
+  // - HTML report: viewable with: npx playwright show-report
+  // - JSON report: machine-readable results used by save-results.js to build history
+  reporter: [
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
 });
