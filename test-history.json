@@ -936,5 +936,14 @@
     "failed": 0,
     "total": 9,
     "failedTests": []
+  },
+  {
+    "date": "2026-08-15T02:54:39.876Z",
+    "passed": 8,
+    "failed": 1,
+    "total": 9,
+    "failedTests": [
+      "search box filters the contact list"
+    ]
   }
 ]
